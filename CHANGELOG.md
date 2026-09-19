@@ -6,6 +6,210 @@ project ini memakai skema versi `MAJOR.MINOR.PATCH` selama fase pra-1.0.
 
 ---
 
+## [0.5.0] — Web Server, Automation, Developer Tools & Performance
+
+Rilis ini dikerjakan berdasarkan permintaan fitur bertema "Web Server,
+Automation, Developer Tools, dan Performance". Nomor versi awalnya diminta
+sebagai "v0.2.1", tapi project ini **sudah pernah memiliki v0.2.1**
+("Astra Device Bridge", dicabut di v0.3.0) — supaya penomoran versi tetap
+runtut dan tidak bentrok dengan sejarah project, rilis ini diberi nomor
+v0.5.0 (lanjutan wajar dari v0.4.1) atas persetujuan eksplisit.
+
+### Catatan Pemulihan Project
+
+Sebelum pengerjaan rilis ini dimulai, lingkungan kerja sempat ter-reset
+(seluruh file kerja hilang dari filesystem sandbox). Project berhasil
+dipulihkan **utuh dari file `AstraLang-v0.4.1.zip`** yang tersimpan di
+folder output rilis sebelumnya — bukan ditulis ulang dari ingatan.
+Dikonfirmasi 135/135 test v0.4.1 tetap lulus setelah pemulihan, sebelum
+pengembangan v0.5.0 dimulai.
+
+### Ditambahkan: `for` Loop
+
+- `for item in daftar { ... }` — iterasi otomatis untuk List dan string
+  (iterasi karakter). Variabel loop hanya hidup di dalam blok, tidak bocor
+  ke scope luar (diverifikasi dengan test eksplisit).
+- Token baru: `FOR`, `IN`. AST node baru: `ForStatement`.
+- Diverifikasi untuk List angka, List string, List custom type (dengan
+  akumulasi field), dan penolakan iterasi terhadap tipe yang bukan
+  List/string dengan pesan error yang jelas.
+
+### Ditambahkan: HTTP Server Multi-Route
+
+- `route "/path" { ... return isi }` — mendaftarkan handler untuk path
+  tertentu. Body route dieksekusi seperti body function (menangkap
+  `ReturnSignal` untuk mendapatkan konten respons), dengan closure ke
+  environment saat `route` dideklarasikan.
+- `HTTP_SERVER_START(port)` — menjalankan HTTP server yang me-routing
+  request berdasarkan path yang terdaftar. Path yang tidak dikenal otomatis
+  dijawab `404`; error di dalam body route dijawab `500` (bukan meng-crash
+  seluruh server). Menolak dijalankan kalau belum ada route terdaftar sama
+  sekali, dengan pesan yang jelas.
+- **Diverifikasi dengan HTTP request sungguhan** (bukan simulasi):
+  `GET /`, `GET /tentang` (memakai blok `html { }`), dan `GET /path-tidak-ada`
+  (mengonfirmasi kode status 404) semuanya diuji lewat `urllib.request`
+  ke server yang benar-benar berjalan di thread terpisah.
+- Beda dari `serve_html()` (v0.4): `serve_html()` melayani **satu** halaman
+  statis untuk semua request; `HTTP_SERVER_START()` mendukung **banyak**
+  route sekaligus.
+
+### Ditambahkan: Blok `html { }`
+
+- `html { title "..." heading "..." text "..." }` — gula sintaks untuk
+  menyusun dokumen HTML lengkap (dengan `<!DOCTYPE html>`, `<title>`,
+  `<h1>`, `<p>`) tanpa menulis tag manual. Nilai di dalamnya di-escape
+  otomatis lewat modul `html` Python (mencegah HTML injection dari data
+  yang mengandung karakter khusus).
+- **Keputusan desain penting terkait kompatibilitas mundur:** `html`
+  **SENGAJA TIDAK dijadikan keyword reserved**. Rencana awal menjadikannya
+  keyword reserved **terbukti memecah 3 contoh v0.4 yang sudah ada**
+  (`web_demo.as`, `web_game.as`, `leaderboard_demo.as` — semuanya memakai
+  `let html = "..."` sebagai nama variabel biasa). Bug ini ditemukan lewat
+  pengujian langsung (menjalankan ulang contoh lama), bukan diasumsikan
+  aman dari membaca kode. Diperbaiki dengan mendeteksi `html { ... }`
+  berdasarkan **posisi** (IDENT bernilai `"html"` di posisi ekspresi primer,
+  diikuti `{`, dan `_allow_instance_literal` aktif) — pola yang sama seperti
+  heuristik instance-literal custom type di v0.3. Diverifikasi dengan test
+  eksplisit bahwa `let html = "..."` tetap sah SEKALIGUS `html { ... }`
+  tetap dikenali sebagai blok, tergantung konteks pemakaian.
+
+### Ditambahkan: Map & JSON
+
+- **`AstraMap`** (di `runtime.py`) — tipe data dictionary/key-value
+  sederhana. Diakses lewat built-in function (`map_new`, `map_get`,
+  `map_set`, `map_has`, `map_keys`), bukan syntax indexing `[key]`, supaya
+  tidak ambigu dengan semantik `IndexExpr` yang sudah khusus untuk integer
+  index pada List/string.
+- **`json_stringify(nilai)`** — mengonversi nilai AstraLang (angka, string,
+  boolean, null, List, Map, custom type) menjadi string JSON. Tipe yang
+  tidak didukung (function, dll) ditolak dengan pesan jelas alih-alih
+  menghasilkan JSON yang salah.
+- **`json_parse(teks)`** — mengonversi string JSON menjadi nilai AstraLang
+  (object JSON → Map, array JSON → List). JSON yang tidak valid ditolak
+  dengan pesan error dan hint contoh format yang benar.
+- **Diverifikasi bahwa hasil `json_stringify()` adalah JSON yang benar-benar
+  valid** dengan memparse-nya ulang memakai `json.loads()` Python asli
+  (bukan hanya format yang "terlihat mirip" JSON), termasuk untuk nilai
+  `true`/`null` yang representasi print AstraLang dan JSON berbeda secara
+  sengaja dipisahkan (representasi `print` untuk Map TIDAK mengklaim JSON
+  valid; `json_stringify()` yang menjamin itu).
+
+### Ditambahkan: File Module & String Functions
+
+- `file_read()`/`file_write()` — alias langsung dari `read_file()`/
+  `write_file()` (v0.4), memenuhi permintaan penamaan gaya module tanpa
+  duplikasi logic.
+- String functions: `upper()`, `lower()`, `trim()`, `split()`, `replace()`,
+  `starts_with()`, `ends_with()`. Semua memvalidasi tipe argumen dengan
+  pesan error yang jelas. `split()` menolak pemisah kosong.
+- **Catatan pemulihan:** fungsi-fungsi string ini sempat dikerjakan di
+  sesi sebelum reset lingkungan, tapi belum sempat tersimpan ke zip
+  terakhir — ditemukan hilang saat `examples/for_loop_demo.as` gagal
+  dengan error "Variabel 'upper' tidak ditemukan" saat pengujian end-to-end,
+  lalu dikerjakan ulang dan diverifikasi sebagai bagian resmi v0.5.0.
+
+### Ditambahkan: Timer
+
+- `timer_after(ms, nama_fungsi)` — menjalankan fungsi setelah durasi
+  tertentu. Fungsi callback harus tidak menerima parameter.
+- **Diverifikasi dengan pengukuran waktu nyata** (bukan asumsi) bahwa
+  program benar-benar tertunda sesuai durasi yang diberikan.
+- **Batasan yang dicatat jujur:** implementasi bersifat **blocking**
+  (`time.sleep()`), bukan asynchronous. AstraLang belum punya event
+  loop/concurrency sungguhan, jadi `timer_after()` menghentikan eksekusi
+  program selama durasi timer — tidak bisa "berjalan di latar belakang"
+  sambil kode lain tetap berjalan. Ini didokumentasikan eksplisit di
+  README dan komentar kode, bukan disembunyikan.
+
+### Ditambahkan: Mode Debug (`--debug`)
+
+- `python3 compiler.py program.as --debug` menampilkan:
+  - Traceback Python asli di bawah pesan error normal (untuk debugging
+    interpreter AstraLang sendiri), di ketiga tahap (lexer/parser/runtime).
+  - Waktu eksekusi tiap tahap (lexer, parser, interpreter) dalam
+    milidetik saat program berhasil jalan tanpa error.
+- Mode debug MENAMBAH informasi, tidak menggantikan pesan error normal
+  yang sudah ada (pesan + lokasi + hint tetap tampil seperti biasa).
+
+### Ditambahkan: Package Manager Lokal
+
+- **`astra_pkg.py`** (script terpisah, dijalankan langsung: `python3
+  astra_pkg.py ...`) — package manager LOKAL:
+  - `install <folder_atau_zip> [--name nama]` — menyalin folder atau
+    mengekstrak `.zip` ke `astra_packages/<nama>/`, mencatat metadata di
+    `astra_packages.json`.
+  - `remove <nama>` — menghapus package terinstal.
+  - `list` — menampilkan semua package terinstal beserta sumbernya.
+- **Diverifikasi dengan operasi file sungguhan**: install dari folder,
+  install dari `.zip` (dengan `--name` kustom), list, remove, dan
+  pembuktian bahwa file `.as` hasil instalasi benar-benar bisa dibaca dari
+  script AstraLang lewat `read_file()`.
+- **Batasan yang dicatat jujur dan disepakati eksplisit sebelum
+  dikerjakan:** ini BUKAN package manager online seperti npm/PyPI — tidak
+  ada registry server, hosting, atau unduh dari internet. Package harus
+  sudah ada sebagai folder/zip lokal. AstraLang juga belum punya sistem
+  `import` sungguhan, jadi package manager ini murni mengelola penyimpanan
+  & metadata; memakai isi package masih perlu `read_file()` manual.
+
+### Optimisasi Performa (Diukur, Bukan Diklaim)
+
+- **Dispatch table di-cache** untuk `_exec_statement()` dan `_eval()` di
+  `interpreter.py`. Sebelumnya, setiap eksekusi statement/ekspresi
+  memanggil `getattr(self, f"_exec_{type(node).__name__}")` — resolve
+  method lewat string formatting + attribute lookup berulang-ulang.
+  **Diprofilkan dengan `cProfile`** pada while-loop 50.000 iterasi:
+  `getattr()` dipanggil 650.008 kali sebagai kontributor waktu terbesar
+  kedua sebelum optimisasi. Sekarang dispatch table `{NodeClass: method}`
+  dibangun SEKALI di `Interpreter.__init__()` (lewat introspeksi otomatis
+  yang mencocokkan nama method `_exec_*`/`_eval_*` ke class Node dari
+  `parser.py`), dan lookup selanjutnya memakai `dict.get(type(node))` yang
+  jauh lebih murah.
+- **Hasil pengukuran yang jujur (bukan berlebihan):**
+  - `getattr()` terkonfirmasi **hilang total** dari profil `cProfile`
+    setelah optimisasi.
+  - `for`-loop (push 10k + iterasi 10k): **70ms → 51ms** (~26% lebih
+    cepat), perbaikan yang konsisten dan terukur jelas.
+  - `while`-loop 100k iterasi dan rekursi `fib(20)`: hasil berada dalam
+    **margin noise pengukuran sandbox** (variasi antar-run 386ms–512ms
+    untuk kasus yang sama) — TIDAK diklaim sebagai peningkatan pasti untuk
+    kasus ini, karena bottleneck yang tersisa (evaluasi `BinaryExpr`,
+    pengecekan tipe) berada di luar scope optimisasi dispatch-table.
+  - Startup time diukur terpisah: import semua modul ~12.5ms, inisialisasi
+    `Interpreter()` (termasuk 38 built-in) ~0.05ms — bukan bottleneck yang
+    signifikan untuk dioptimasi lebih lanjut pada rilis ini.
+- Optimisasi arsitektural lebih besar (compile ke bytecode) tetap di
+  roadmap versi mendatang, bukan dikerjakan di rilis ini.
+
+### Testing
+
+- `tests/test_v0_5_features.py` — 57 test baru: for-loop (List, string,
+  custom type, scope, penolakan tipe salah), blok `html {}` (termasuk
+  KASUS KRITIS variabel `html` tetap kompatibel), route (registrasi &
+  lookup, path invalid), **HTTP server dengan request HTTP sungguhan**
+  (200, 404, konten benar), Map, **JSON yang diverifikasi valid lewat
+  `json.loads()` Python asli**, file module alias, string functions
+  (termasuk kombinasi `split()` + `for`-loop), **timer dengan pengukuran
+  waktu nyata**, dan regresi eksplisit v0.1/v0.3/v0.4.
+- `tests/run_all.py` diperbarui memasukkan `test_v0_5_features.py`.
+- Total setelah v0.5.0: **192/192 test lulus** (18 v0.1 + 25 List + 25
+  Custom Type + 17 Web/File I/O + 30 Kemudahan Pemula + 20 List Ops
+  Lanjutan + 57 Web Server/Automation/Dev Tools).
+
+### Dokumentasi
+
+- `examples/for_loop_demo.as`, `examples/route_server_demo.as` — contoh
+  program untuk fitur baru, keduanya diverifikasi jalan end-to-end
+  (termasuk `route_server_demo.as` diuji dengan HTTP request nyata ke 3
+  route sekaligus).
+- `README.md` diperbarui: struktur project, section "Web Server,
+  Automation & Developer Tools", tabel fitur, roadmap.
+
+### Diubah
+
+- `compiler.py`: `VERSION` dinaikkan dari `0.4.1` ke `0.5.0`.
+
+---
+
 ## [0.4.0] — Web, File I/O, dan Build Executable
 
 ### Ditambahkan: File I/O
@@ -173,8 +377,88 @@ ringkas ditulis dibanding Python, bukan cuma "semudah" Python:
   diperbaiki dengan mengganti `sys.stdin` secara manual di dalam
   try/finally.
 - `tests/run_all.py` diperbarui memasukkan `test_v0_4_beginner_friendly.py`.
-- Total setelah v0.4 (lengkap): **115/115 test lulus** (18 v0.1 + 25 List +
+- Total setelah v0.4.0: **115/115 test lulus** (18 v0.1 + 25 List +
   25 Custom Type + 17 Web/File I/O + 30 Kemudahan Pemula).
+
+---
+
+## [0.4.1] — Contoh Game & Operasi List Lanjutan
+
+Dikerjakan sebagai respons atas permintaan "web game format AstraLang" —
+tiga pendekatan game dibuat dan masing-masing diverifikasi jalan nyata
+sebelum diklaim selesai.
+
+### Ditambahkan: Contoh Game
+
+- **`examples/game_bgk.as`** — game terminal Batu Gunting Kertas. Memakai
+  custom type `Skor` untuk menghitung menang/kalah/seri, List sebagai
+  daftar pilihan valid, `input()` untuk giliran pemain, `randint()` untuk
+  pilihan komputer, dan validasi input. Logika kemenangan diverifikasi
+  terisolasi (semua 5 kombinasi pilihan diuji manual) sebelum diintegrasikan
+  ke loop permainan penuh.
+- **`examples/web_game.as`** — game tebak angka **interaktif di browser**.
+  AstraLang menyusun HTML + CSS + JavaScript sebagai satu string (JS
+  menangani klik tombol, cek jawaban, update skor secara real-time di sisi
+  klien), lalu menyajikannya lewat `serve_html()`. Diverifikasi dengan HTTP
+  request sungguhan yang mengonfirmasi seluruh konten game (fungsi JS,
+  event listener, elemen form) benar-benar terkirim ke browser, bukan cuma
+  diasumsikan dari membaca kode.
+  - **Batasan yang dicatat jujur:** `serve_html()` melayani halaman statis
+    yang sama untuk semua request — belum ada mekanisme AstraLang menerima
+    data balik dari browser (mis. menyimpan skor tertinggi di sisi server).
+    Untuk pola game seperti ini, seluruh logic interaktif harus berjalan di
+    JavaScript sisi klien.
+- **`examples/leaderboard_demo.as`** — AstraLang murni (tanpa JavaScript)
+  menghasilkan halaman leaderboard statis dari List berisi custom type
+  `Pemain`, diurutkan berdasarkan skor.
+
+### Ditambahkan: Operasi List Lanjutan
+
+Saat membuat `leaderboard_demo.as`, kebutuhan mengurutkan List custom type
+memakai bubble sort manual (±15 baris) terasa jadi friksi yang tidak perlu
+untuk kasus umum — mendorong penambahan built-in List berikut:
+
+- **`sort(daftar)`** — urutkan List berisi angka atau string (menaik),
+  mengembalikan List baru (tidak mengubah aslinya). Menolak List dengan
+  tipe campuran dengan pesan jelas.
+- **`sort_by(daftar, fungsi_kunci)`** — urutkan List berisi custom type
+  berdasarkan sebuah field, dengan memanggil balik function AstraLang
+  sebagai key pengurutan. Ini membutuhkan refactor kecil:
+  `_call_astra_function()` diekstrak dari `_eval_CallExpr` di
+  `interpreter.py` supaya logic pemanggilan `AstraFunction` bisa dipakai
+  ulang dari built-in, tanpa duplikasi kode. Diverifikasi bahwa refactor
+  ini tidak mengubah perilaku pemanggilan function biasa (termasuk rekursi
+  dan function tanpa `return`) lewat test regresi eksplisit.
+- **`reverse(daftar)`** — balik urutan List, dipakai bersama `sort_by()`
+  untuk mengurutkan turun (leaderboard skor tertinggi dulu).
+- **`contains(daftar, nilai)`**, **`join(daftar, pemisah)`**,
+  **`slice(daftar, mulai, akhir)`** — operasi List umum lain yang sempat
+  dicatat sebagai "belum ada" di CHANGELOG v0.3.
+- `examples/leaderboard_demo.as` disederhanakan memakai `sort_by()` +
+  `reverse()`, menggantikan bubble sort manual — hasil akhirnya
+  diverifikasi identik dengan versi bubble sort sebelumnya.
+
+### Diubah
+
+- `compiler.py`: `VERSION` dinaikkan dari `0.4.0` ke `0.4.1`.
+
+### Testing
+
+- `tests/test_v0_4_list_ops.py` — 20 test baru: sort (angka, string, tidak
+  mutasi original, menolak tipe campuran), reverse, contains, join, slice,
+  sort_by (dengan custom type, menolak non-function, menolak arity salah),
+  skenario leaderboard end-to-end, dan regresi eksplisit yang memastikan
+  refactor `_call_astra_function` tidak mengubah pemanggilan function biasa.
+- `tests/run_all.py` diperbarui memasukkan `test_v0_4_list_ops.py`.
+- Total setelah v0.4.1: **135/135 test lulus** (18 v0.1 + 25 List + 25
+  Custom Type + 17 Web/File I/O + 30 Kemudahan Pemula + 20 List Ops
+  Lanjutan).
+
+### Dokumentasi
+
+- `README.md` diperbarui: section "Membuat Game dengan AstraLang" (3
+  pendekatan), section "Operasi List Tambahan", struktur project, tabel
+  fitur.
 
 ---
 

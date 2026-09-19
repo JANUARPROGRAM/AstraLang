@@ -191,6 +191,37 @@ class FieldAssignExpr(Node):
         self.line = line
 
 
+# -- Ditambahkan v0.5: for-loop ---------------------------------------------
+class ForStatement(Node):
+    """for item in daftar { ... } -- iterasi setiap elemen List/string"""
+    def __init__(self, var_name, iterable, body, line):
+        self.var_name = var_name
+        self.iterable = iterable
+        self.body = body
+        self.line = line
+
+
+# -- Ditambahkan v0.5: Web Route & HTML block -------------------------------
+class RouteStatement(Node):
+    """route "/path" { ... return "isi respons" } -- daftarkan route HTTP"""
+    def __init__(self, path_expr, body, line):
+        self.path_expr = path_expr  # Node yang menghasilkan string path
+        self.body = body            # list of statement (biasanya diakhiri return)
+        self.line = line
+
+
+class HtmlBlockExpr(Node):
+    """
+    html { title "Judul" text "isi" } -- gula sintaks untuk menyusun HTML
+    sederhana tanpa perlu menulis tag manual. Dikenali berdasarkan posisi
+    (IDENT bernilai 'html' di awal statement diikuti '{'), BUKAN keyword
+    reserved, supaya 'let html = "..."' (dipakai di contoh v0.4) tetap sah.
+    """
+    def __init__(self, entries, line):
+        self.entries = entries  # list of (kind, Node) -- kind: 'title'/'text'/'heading'
+        self.line = line
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -242,7 +273,7 @@ class Parser:
     # -- entry point ------------------------------------------------------
     def parse(self):
         statements = []
-        self._skip_newlines()y
+        self._skip_newlines()
         while not self._check("EOF"):
             statements.append(self._statement())
             self._skip_newlines()
@@ -260,12 +291,16 @@ class Parser:
             return self._if_statement()
         if tok.type == "WHILE":
             return self._while_statement()
+        if tok.type == "FOR":
+            return self._for_statement()
         if tok.type == "FUNCTION":
             return self._function_decl()
         if tok.type == "RETURN":
             return self._return_statement()
         if tok.type == "TYPE":
             return self._type_decl()
+        if tok.type == "ROUTE":
+            return self._route_statement()
 
         return self._expression_statement()
 
@@ -327,6 +362,32 @@ class Parser:
         self._allow_instance_literal = True
         body = self._block()
         return WhileStatement(condition, body, line)
+
+    # -- Ditambahkan v0.5: for-loop -----------------------------------------
+    def _for_statement(self):
+        line = self._current().line
+        self._advance()  # 'for'
+        var_tok = self._expect(
+            "IDENT", "Diharapkan nama variabel setelah 'for'",
+            hint="Contoh: for item in daftar { ... }",
+        )
+        self._expect(
+            "IN", f"Diharapkan 'in' setelah nama variabel '{var_tok.value}'",
+            hint=f"Contoh: for {var_tok.value} in daftar {{ ... }}",
+        )
+        self._allow_instance_literal = False
+        iterable = self._expression()
+        self._allow_instance_literal = True
+        body = self._block()
+        return ForStatement(var_tok.value, iterable, body, line)
+
+    # -- Ditambahkan v0.5: Web Route -----------------------------------------
+    def _route_statement(self):
+        line = self._current().line
+        self._advance()  # 'route'
+        path_expr = self._expression()
+        body = self._block()
+        return RouteStatement(path_expr, body, line)
 
     def _function_decl(self):
         line = self._current().line
@@ -507,9 +568,39 @@ class Parser:
                 # supaya tidak bentrok dengan blok lain yang kebetulan muncul
                 # setelah sebuah identifier di posisi ekspresi.
                 expr = self._instance_literal(expr.name, expr.line)
+            elif self._check("LBRACE") and self._allow_instance_literal \
+                    and isinstance(expr, VarExpr) and expr.name == "html":
+                # v0.5: html { title "..." text "..." } sebagai EKSPRESI,
+                # supaya bisa dipakai mis. 'return html { ... }' di dalam
+                # route, atau 'let h = html { ... }'. Dideteksi berdasarkan
+                # posisi (bukan keyword reserved) supaya 'let html = "..."'
+                # (dipakai contoh v0.4) tetap sah -- lihat catatan di lexer.py.
+                expr = self._html_block(expr.line)
             else:
                 break
         return expr
+
+    def _html_block(self, line):
+        self._advance()  # '{'
+        self._skip_newlines()
+        entries = []
+        while not self._check("RBRACE") and not self._check("EOF"):
+            kind_tok = self._current()
+            if kind_tok.type != "IDENT" or kind_tok.value not in ("title", "text", "heading"):
+                raise ParserError(
+                    f"Di dalam blok 'html {{ }}' hanya boleh berisi title/heading/text, ketemu '{kind_tok.value}'",
+                    kind_tok.line, kind_tok.column,
+                    hint='Contoh: html { title "Judul" heading "Halo" text "isi" }',
+                )
+            self._advance()
+            value_expr = self._expression()
+            entries.append((kind_tok.value, value_expr))
+            self._skip_newlines()
+        self._expect(
+            "RBRACE", "Diharapkan '}' untuk menutup blok html",
+            hint='Contoh: html { title "Judul" text "isi" }',
+        )
+        return HtmlBlockExpr(entries, line)
 
     def _instance_literal(self, type_name, line):
         self._advance()  # '{'

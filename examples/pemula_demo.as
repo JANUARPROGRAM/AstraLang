@@ -1,4 +1,4 @@
-Contoh v0.4: AstraLang untuk pemula
+# Contoh v0.4: AstraLang untuk pemula
 # Menunjukkan fitur yang bikin AstraLang lebih gampang dari Python:
 # - variabel BOLEH tanpa 'let' (langsung nama = nilai)
 # - input(), random(), randint() siap pakai

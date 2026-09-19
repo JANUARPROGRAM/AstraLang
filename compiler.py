@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AstraLang Compiler/Runner - Entry Point (v0.4.0)
+AstraLang Compiler/Runner - Entry Point (v0.5.0)
 ==================================================
 Ini adalah titik masuk (CLI) untuk menjalankan program AstraLang (.as).
 
@@ -21,14 +21,21 @@ v0.4 menambahkan opsi --lang untuk menampilkan pesan error dalam Bahasa
 Inggris (pesan tetap DITULIS dalam Bahasa Indonesia di source code sebagai
 bahasa kanonik, lalu diterjemahkan saat ditampilkan lewat modul i18n.py).
 
+v0.5 menambahkan opsi --debug: menampilkan waktu eksekusi tiap tahap
+(lexer/parser/interpreter) dan traceback Python asli di bawah pesan error
+normal (bukan menggantikannya) untuk membantu development AstraLang sendiri.
+
 Cara pakai:
     python3 compiler.py <file.as>
     python3 compiler.py <file.as> --lang en
+    python3 compiler.py <file.as> --debug
     python3 compiler.py --version
 """
 
 import sys
 import os
+import time
+import traceback
 
 from lexer import Lexer, LexerError
 from parser import Parser, ParserError
@@ -36,7 +43,7 @@ from interpreter import Interpreter
 from runtime import AstraRuntimeError
 from i18n import translate, normalize_lang
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 
 def print_error_box(title, message, location=None, hint=None, lang="id"):
@@ -56,7 +63,7 @@ def print_error_box(title, message, location=None, hint=None, lang="id"):
         print(f"  {translate('Saran:', lang)} {translate(hint, lang)}", file=sys.stderr)
 
 
-def run_file(path: str, lang: str = "id") -> int:
+def run_file(path: str, lang: str = "id", debug: bool = False) -> int:
     lang = normalize_lang(lang)
 
     if not os.path.isfile(path):
@@ -76,6 +83,7 @@ def run_file(path: str, lang: str = "id") -> int:
         source = f.read()
 
     # --- Tahap 1: Lexing ---
+    t0 = time.perf_counter()
     try:
         tokens = Lexer(source).tokenize()
     except LexerError as e:
@@ -84,7 +92,11 @@ def run_file(path: str, lang: str = "id") -> int:
             location=f"{path}:{e.line}:{e.column}",
             lang=lang,
         )
+        if debug:
+            print("\n[DEBUG] Traceback Python asli:", file=sys.stderr)
+            traceback.print_exc()
         return 1
+    t1 = time.perf_counter()
 
     # --- Tahap 2: Parsing ---
     try:
@@ -96,7 +108,11 @@ def run_file(path: str, lang: str = "id") -> int:
             hint=e.hint,
             lang=lang,
         )
+        if debug:
+            print("\n[DEBUG] Traceback Python asli:", file=sys.stderr)
+            traceback.print_exc()
         return 1
+    t2 = time.perf_counter()
 
     # --- Tahap 3: Interpretasi ---
     try:
@@ -109,6 +125,9 @@ def run_file(path: str, lang: str = "id") -> int:
             hint=e.hint,
             lang=lang,
         )
+        if debug:
+            print("\n[DEBUG] Traceback Python asli:", file=sys.stderr)
+            traceback.print_exc()
         return 1
     except RecursionError:
         print_error_box(
@@ -117,7 +136,18 @@ def run_file(path: str, lang: str = "id") -> int:
             hint="Cek apakah ada fungsi rekursif yang tidak punya kondisi berhenti (base case)",
             lang=lang,
         )
+        if debug:
+            print("\n[DEBUG] Traceback Python asli:", file=sys.stderr)
+            traceback.print_exc()
         return 1
+    t3 = time.perf_counter()
+
+    if debug:
+        print("\n[DEBUG] Waktu eksekusi:", file=sys.stderr)
+        print(f"  Lexer      : {(t1 - t0) * 1000:.3f} ms", file=sys.stderr)
+        print(f"  Parser     : {(t2 - t1) * 1000:.3f} ms", file=sys.stderr)
+        print(f"  Interpreter: {(t3 - t2) * 1000:.3f} ms", file=sys.stderr)
+        print(f"  Total      : {(t3 - t0) * 1000:.3f} ms", file=sys.stderr)
 
     return 0
 
@@ -129,6 +159,7 @@ def print_usage():
     print("Cara pakai:")
     print("  python3 compiler.py <file.as>                Menjalankan file AstraLang")
     print("  python3 compiler.py <file.as> --lang en       Menjalankan dengan pesan error Bahasa Inggris")
+    print("  python3 compiler.py <file.as> --debug         Menjalankan dengan mode debug (waktu eksekusi + traceback)")
     print("  python3 compiler.py --version                 Menampilkan versi")
     print("  python3 compiler.py --help                    Menampilkan bantuan ini")
 
@@ -147,7 +178,9 @@ def main():
     file_path = args[0]
 
     # -- Ditambahkan v0.4: parsing opsi --lang --
+    # -- Ditambahkan v0.5: parsing opsi --debug --
     lang = "id"
+    debug = False
     rest = args[1:]
     i = 0
     while i < len(rest):
@@ -157,11 +190,14 @@ def main():
                 return 1
             lang = normalize_lang(rest[i + 1])
             i += 2
+        elif rest[i] == "--debug":
+            debug = True
+            i += 1
         else:
             print(f"Peringatan: argumen tidak dikenal diabaikan: {rest[i]}", file=sys.stderr)
             i += 1
 
-    return run_file(file_path, lang=lang)
+    return run_file(file_path, lang=lang, debug=debug)
 
 
 if __name__ == "__main__":

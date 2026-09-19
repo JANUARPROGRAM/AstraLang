@@ -1,5 +1,5 @@
 """
-AstraLang Lexer (v0.1, diperluas di v.0.30 di updatw  v0.40)
+AstraLang Lexer (v0.1, diperluas di v0.3)
 ============================================
 Bertugas membaca source code AstraLang (.as) dan mengubahnya
 menjadi deretan token yang akan diproses oleh Parser.
@@ -23,10 +23,14 @@ TOKEN_TYPES = (
     "LPAREN", "RPAREN", "LBRACE", "RBRACE",
     "COMMA", "SEMI",
     "NEWLINE", "EOF",
-    # -- Ditambahkan v0.40: Type System (List & null) --
+    # -- Ditambahkan v0.3: Type System (List & null) --
     "LBRACKET", "RBRACKET", "NULL",
-    # -- Ditambahkan v0.40 lanjutan: Custom Type --
+    # -- Ditambahkan v0.3 lanjutan: Custom Type --
     "TYPE", "DOT", "COLON",
+    # -- Ditambahkan v0.5: for-loop --
+    "FOR", "IN",
+    # -- Ditambahkan v0.5: Web Route --
+    "ROUTE",
 )
 
 KEYWORDS = {
@@ -46,6 +50,18 @@ KEYWORDS = {
     "null": "NULL",
     # -- Ditambahkan v0.3 lanjutan: Custom Type --
     "type": "TYPE",
+    # -- Ditambahkan v0.5: for-loop --
+    "for": "FOR",
+    "in": "IN",
+    # -- Ditambahkan v0.5: Web Route --
+    # CATATAN: 'html' SENGAJA TIDAK dijadikan keyword reserved di sini,
+    # karena contoh lama (web_demo.as, web_game.as, leaderboard_demo.as)
+    # sudah memakai 'html' sebagai NAMA VARIABEL biasa (let html = "...").
+    # Menjadikannya keyword reserved akan memecah kompatibilitas mundur.
+    # Sebagai gantinya, blok 'html { ... }' dikenali di PARSER berdasarkan
+    # posisi (IDENT bernilai "html" tepat di awal statement, diikuti '{'),
+    # dengan pola yang sama seperti heuristik instance-literal custom type.
+    "route": "ROUTE",
 }
 
 

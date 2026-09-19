@@ -153,6 +153,8 @@ def _runtime_type_name(value):
         return "list"
     if isinstance(value, AstraInstance):
         return value.type_def.name
+    if isinstance(value, AstraMap):
+        return "map"
     return type(value).__name__
 
 
@@ -279,3 +281,51 @@ class AstraInstance:
     def __repr__(self):
         field_str = ", ".join(f"{k}: {v!r}" for k, v in self.values.items())
         return f"{self.type_def.name} {{{field_str}}}"
+
+
+# -- Ditambahkan v0.5: Map (dictionary sederhana) --------------------------
+class AstraMap:
+    """
+    Representasi runtime tipe data Map (key-value, mirip dict Python) di
+    AstraLang. Ditambahkan terutama sebagai basis representasi JSON object
+    (JSON object -> AstraMap, JSON array -> AstraList), tapi juga berguna
+    umum sebagai struktur data key-value.
+
+    Diakses lewat built-in function map_get/map_set/map_keys (bukan syntax
+    indexing [key]), karena IndexExpr sekarang secara semantik khusus untuk
+    integer index pada List/string -- memakainya juga untuk Map akan
+    membingungkan (index [0] pada List vs key ["nama"] pada Map terlihat
+    sama tapi artinya beda total).
+    """
+
+    def __init__(self, items=None):
+        self.items = dict(items) if items is not None else {}
+
+    def get(self, key, line=None):
+        if key not in self.items:
+            raise AstraRuntimeError(
+                f"Key '{key}' tidak ditemukan di dalam map",
+                line,
+                hint="Cek dulu dengan map_has(peta, key) sebelum mengambil nilainya",
+            )
+        return self.items[key]
+
+    def set(self, key, value):
+        self.items[key] = value
+
+    def has(self, key):
+        return key in self.items
+
+    def keys(self):
+        return list(self.items.keys())
+
+    def __len__(self):
+        return len(self.items)
+
+    def __eq__(self, other):
+        if isinstance(other, AstraMap):
+            return self.items == other.items
+        return NotImplemented
+
+    def __repr__(self):
+        return f"AstraMap({self.items!r})"

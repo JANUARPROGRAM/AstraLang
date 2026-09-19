@@ -9,17 +9,17 @@
 - 🤖 Dukungan AI/Machine Learning sebagai fitur masa depan
 - 🌍 Berkembang menjadi bahasa pemrograman internasional
 
-> **Status saat ini: v0.4.0 — Web, File I/O, Build Executable & Lebih Mudah dari Python**
+> **Status saat ini: v0.5.0 — Web Server, Automation, Developer Tools & Performance**
 > AstraLang adalah tree-walking interpreter yang ditulis murni dengan Python
-> (tanpa dependency eksternal). v0.4 menambahkan **File I/O**, **web server
-> bawaan**, **script build ke executable**, dan tiga hal yang membuat
-> AstraLang lebih ringkas ditulis daripada Python: **`let` opsional**
-> (`nama = "Budi"` langsung jalan), **pesan error dwibahasa** (Indonesia/
-> Inggris lewat `--lang en`), dan **built-in siap pakai untuk pemula**
-> (`input`, `random`, `randint`, `round`, `int`, `float`). Lihat
-> `CHANGELOG.md` untuk riwayat lengkap termasuk keputusan pencabutan fitur
-> "Astra Device Bridge" dan batasan jujur soal APK (belum bisa dibuat dari
-> lingkungan pengembangan ini).
+> (tanpa dependency eksternal). v0.5.0 menambahkan **`for` loop**, **HTTP
+> server multi-route** (`route`/`HTTP_SERVER_START`), **blok `html { }`**,
+> **Map & JSON**, **file module** (`file_read`/`file_write`), **string
+> functions** (`upper`/`lower`/`split`/dst), **`timer_after`** (blocking),
+> **mode `--debug`**, **package manager lokal** (`astra_pkg.py`), dan
+> **optimisasi dispatch interpreter** (menghilangkan `getattr` berulang dari
+> hot path eksekusi). Lihat `CHANGELOG.md` untuk riwayat lengkap termasuk
+> keputusan pencabutan fitur "Astra Device Bridge" dan batasan jujur soal
+> APK (belum bisa dibuat dari lingkungan pengembangan ini).
 
 ---
 
@@ -37,30 +37,39 @@ Contoh: `main.as`
 AstraLang/
 │
 ├── compiler.py       # Entry point CLI: menjalankan file .as
-├── build_exe.py       # (BARU v0.4) script build jadi executable (.exe)
-├── lexer.py            # Tahap 1: source code -> token
-├── parser.py           # Tahap 2: token -> AST (Abstract Syntax Tree)
-├── interpreter.py      # Tahap 3: menjalankan AST
-├── runtime.py           # Environment, error handling, tipe function, List, Type
-├── i18n.py               # (BARU v0.4) sistem terjemahan pesan error ID/EN
+├── build_exe.py       # script build jadi executable (.exe)
+├── astra_pkg.py        # (BARU v0.5) package manager lokal (install/remove/list)
+├── lexer.py             # Tahap 1: source code -> token
+├── parser.py            # Tahap 2: token -> AST (Abstract Syntax Tree)
+├── interpreter.py       # Tahap 3: menjalankan AST
+├── runtime.py             # Environment, error handling, List, Type, Map
+├── i18n.py                 # sistem terjemahan pesan error ID/EN
 │
 ├── examples/
 │   ├── hello.as
 │   ├── advanced.as
-│   ├── list_demo.as          # contoh Type System: List, indexing, null
-│   ├── custom_type_demo.as   # contoh Custom Type
-│   └── web_demo.as           # (BARU v0.4) contoh generate file HTML
+│   ├── list_demo.as             # contoh Type System: List, indexing, null
+│   ├── custom_type_demo.as      # contoh Custom Type
+│   ├── web_demo.as              # contoh generate file HTML
+│   ├── pemula_demo.as           # contoh let opsional, input, randint
+│   ├── game_bgk.as              # game terminal: batu gunting kertas
+│   ├── web_game.as              # game web interaktif (HTML+JS via serve_html)
+│   ├── leaderboard_demo.as      # generate halaman leaderboard statis
+│   ├── for_loop_demo.as         # (BARU v0.5) contoh for-loop
+│   └── route_server_demo.as     # (BARU v0.5) HTTP server multi-route
 │
 ├── tests/
-│   ├── test_v0_1_regression.py   # test fitur inti bahasa (wajib selalu lulus)
-│   ├── test_v0_3_features.py     # test List & Error System (v0.3)
-│   ├── test_v0_3_custom_type.py  # test Custom Type (v0.3)
-│   ├── test_v0_4_web.py           # test File I/O & web server (v0.4)
-│   ├── test_v0_4_beginner_friendly.py  # (BARU v0.4) test let opsional, i18n, built-in pemula
-│   └── run_all.py                 # runner semua test
+│   ├── test_v0_1_regression.py       # test fitur inti bahasa (wajib selalu lulus)
+│   ├── test_v0_3_features.py         # test List & Error System (v0.3)
+│   ├── test_v0_3_custom_type.py      # test Custom Type (v0.3)
+│   ├── test_v0_4_web.py               # test File I/O & web server (v0.4)
+│   ├── test_v0_4_beginner_friendly.py  # test let opsional, i18n, built-in pemula
+│   ├── test_v0_4_list_ops.py           # test sort, sort_by, contains, join, slice
+│   ├── test_v0_5_features.py           # (BARU) test for-loop, route, HTTP server, Map, JSON, timer
+│   └── run_all.py                      # runner semua test
 │
 ├── README.md
-├── BUILD.md            # (BARU v0.4) panduan build .exe
+├── BUILD.md             # panduan build .exe
 └── CHANGELOG.md
 ```
 
@@ -265,6 +274,31 @@ if kosong == null {
 
 Lihat `examples/list_demo.as` untuk contoh lengkap.
 
+### Operasi List Tambahan (Baru di v0.4)
+
+| Function | Kegunaan |
+|---|---|
+| `sort(daftar)` | Urutkan angka/string menaik, hasil List baru (tidak mengubah aslinya) |
+| `sort_by(daftar, fungsi_kunci)` | Urutkan List berisi custom type berdasarkan sebuah field |
+| `reverse(daftar)` | Balik urutan, hasil List baru |
+| `contains(daftar, nilai)` | `true`/`false` apakah nilai ada di dalam List |
+| `join(daftar, pemisah)` | Gabungkan isi List jadi satu string |
+| `slice(daftar, mulai, akhir)` | Ambil sebagian List (mirip Python) |
+
+```
+type Pemain {
+    nama
+    skor
+}
+function ambil_skor(p) {
+    return p.skor
+}
+
+let daftar = [Pemain { nama: "A", skor: 50 }, Pemain { nama: "B", skor: 90 }]
+let terurut = sort_by(daftar, ambil_skor)   # urut naik berdasarkan skor
+let terbalik = reverse(terurut)              # urut turun (tertinggi dulu)
+```
+
 ---
 
 ## Custom Type (Baru di v0.3)
@@ -383,6 +417,72 @@ untuk demo atau halaman status sederhana. Tekan `Ctrl+C` untuk menghentikan.
 
 ---
 
+## Membuat Game dengan AstraLang
+
+Ada tiga cara membuat game dengan AstraLang, tergantung kebutuhan:
+
+### A. Game Terminal (Teks)
+
+Cocok untuk game berbasis giliran seperti tebak angka atau batu-gunting-kertas.
+Memakai `input()`, custom type untuk skor, dan List untuk aturan/pilihan:
+
+```
+type Skor {
+    menang
+    kalah
+}
+let skor = Skor { menang: 0, kalah: 0 }
+```
+
+Lihat `examples/game_bgk.as` (Batu Gunting Kertas) — mendemonstrasikan
+custom type, List sebagai daftar pilihan valid, validasi input, dan loop
+permainan sampai pemain memilih keluar.
+
+### B. Game Web Interaktif (Klik/Keyboard di Browser)
+
+AstraLang **menyusun** halaman HTML + CSS + JavaScript sebagai satu string,
+lalu menyajikannya lewat `serve_html()`. Logika interaksi (klik, cek jawaban,
+skor real-time) berjalan di JavaScript pada sisi browser — AstraLang berperan
+menyusun dan menyajikan halamannya:
+
+```
+let html = "<html><body>...<script>...</script></body></html>"
+write_file("game.html", html)     # opsional, untuk pratinjau file
+serve_html(html, 8080)             # sajikan sebagai web game
+```
+
+Lihat `examples/web_game.as` — game tebak angka interaktif lengkap dengan
+tombol, input, dan pengecekan jawaban langsung di browser tanpa reload
+halaman.
+
+> **Batasan yang perlu diketahui:** `serve_html()` melayani halaman statis
+> yang sama untuk semua request — AstraLang tidak (belum) punya cara
+> menerima data balik dari browser ke server (mis. menyimpan skor tertinggi
+> di server). Untuk game seperti ini, seluruh logic game harus berjalan di
+> JavaScript pada sisi browser, seperti pada contoh.
+
+### C. Generate Halaman Hasil/Laporan (Statis)
+
+AstraLang murni menyusun halaman HTML dari data — cocok untuk leaderboard,
+ringkasan skor, atau laporan hasil game, tanpa JavaScript sama sekali:
+
+```
+type Pemain {
+    nama
+    skor
+}
+function ambil_skor(p) {
+    return p.skor
+}
+let terurut = reverse(sort_by(daftar_pemain, ambil_skor))
+```
+
+Lihat `examples/leaderboard_demo.as` — mengurutkan List berisi custom type
+`Pemain` berdasarkan field `skor` memakai `sort_by()`, lalu menyusun tabel
+HTML dari hasilnya.
+
+---
+
 ## Membuat Executable (.exe)
 
 AstraLang bisa dikemas jadi satu file executable yang bisa dijalankan tanpa
@@ -397,6 +497,130 @@ Hasilnya ada di `dist/AstraLang` (Linux/Mac) atau `dist/AstraLang.exe`
 (Windows). Lihat `BUILD.md` untuk panduan lengkap dan batasannya (build
 harus dilakukan di platform target — tidak bisa cross-compile dari
 Linux/Termux ke `.exe` Windows).
+
+---
+
+## Web Server, Automation & Developer Tools (Baru di v0.5)
+
+### 20. `for` Loop
+
+```
+for item in [10, 20, 30] {
+    print item
+}
+for huruf in "Astra" {
+    print huruf
+}
+```
+
+Bekerja untuk List maupun string (iterasi karakter). Variabel loop hanya
+hidup di dalam blok `{ }`, tidak bocor ke luar.
+
+### 21. HTTP Server Multi-Route
+
+```
+route "/" {
+    return "Hello AstraLang"
+}
+route "/tentang" {
+    return "Halaman tentang"
+}
+HTTP_SERVER_START(8080)
+```
+
+Beda dari `serve_html()` (v0.4, satu halaman statis), `HTTP_SERVER_START()`
+mendukung banyak `route` sekaligus. Path yang tidak terdaftar otomatis
+menjawab `404`. Path harus diawali `/`.
+
+### 22. Blok `html { }`
+
+Gula sintaks untuk menyusun HTML sederhana tanpa menulis tag manual:
+
+```
+route "/tentang" {
+    return html {
+        title "Tentang"
+        heading "Tentang Kami"
+        text "Dibuat dengan AstraLang"
+    }
+}
+```
+
+> **Catatan kompatibilitas:** `html` BUKAN keyword reserved — ini sengaja
+> supaya `let html = "..."` (dipakai di beberapa contoh v0.4) tetap sah.
+> `html { ... }` hanya dikenali sebagai blok HTML kalau langsung diikuti
+> `{`; di konteks lain `html` tetap nama variabel biasa.
+
+### 23. Map (Dictionary) & JSON
+
+```
+let m = map_new()
+map_set(m, "nama", "Astra")
+map_set(m, "skor", [10, 20, 30])
+print map_get(m, "nama")
+print map_has(m, "nama")
+print map_keys(m)
+
+let teks = json_stringify(m)   # -> JSON string valid
+let parsed = json_parse(teks)  # -> Map lagi
+```
+
+`json_stringify()` juga bisa dipakai langsung pada custom type dan List.
+
+### 24. File Module & String Functions
+
+```
+file_write("catatan.txt", "isi")
+print file_read("catatan.txt")
+
+print upper("halo")           # HALO
+print lower("HALO")           # halo
+print trim("  spasi  ")        # spasi
+print split("a,b,c", ",")      # [a, b, c]
+print replace("halo dunia", "dunia", "AstraLang")
+print starts_with("AstraLang", "Astra")   # true
+print ends_with("AstraLang", "Lang")      # true
+```
+
+`file_read`/`file_write` adalah alias dari `read_file`/`write_file` (v0.4).
+
+### 25. Timer
+
+```
+function selesai() {
+    print "Done"
+}
+timer_after(1000, selesai)
+```
+
+> **Batasan yang perlu diketahui:** `timer_after()` bersifat **blocking**
+> (program berhenti sejenak selama durasi timer, baru menjalankan
+> callback). AstraLang belum punya event loop/concurrency sungguhan, jadi
+> timer TIDAK berjalan "di latar belakang" sambil kode lain tetap jalan.
+
+### 26. Mode Debug
+
+```bash
+python3 compiler.py program.as --debug
+```
+
+Menampilkan waktu eksekusi tiap tahap (lexer/parser/interpreter) saat
+program berhasil jalan, dan traceback Python asli di bawah pesan error
+normal saat terjadi error — untuk membantu development AstraLang sendiri.
+
+### 27. Package Manager Lokal
+
+```bash
+python3 astra_pkg.py install <folder_atau_file.zip> [--name nama]
+python3 astra_pkg.py list
+python3 astra_pkg.py remove <nama>
+```
+
+> **Batasan yang perlu diketahui:** ini package manager **lokal** (install
+> dari folder/zip di komputer sendiri) — tidak ada registry online seperti
+> npm/PyPI. AstraLang juga belum punya sistem `import` otomatis; untuk
+> memakai isi package yang terinstal, panggil `read_file()` secara manual
+> ke path di dalam `astra_packages/`.
 
 ---
 
@@ -505,7 +729,18 @@ Lihat `examples/pemula_demo.as` untuk contoh lengkap.
 | Variabel tanpa `let`          | ✅ **(v0.4)** | Auto-declare, tanpa merusak closure/scope         |
 | Pesan error dwibahasa (ID/EN) | ✅ **(v0.4)** | Opsi `--lang en`                                   |
 | Built-in pemula (`input`, `random`, dst) | ✅ **(v0.4)** | Lihat tabel di section "Lebih Mudah dari Python" |
-| Module/import               | ❌     | Direncanakan roadmap lanjutan                 |
+| Operasi List lanjutan (`sort`, `sort_by`, dst) | ✅ **(v0.4)** | Lihat tabel di section Type System: List |
+| Contoh game (terminal, web, leaderboard) | ✅ **(v0.4)** | Lihat section "Membuat Game dengan AstraLang" |
+| `for` loop                   | ✅ **(v0.5)** | `for item in daftar { }`, List & string          |
+| HTTP server multi-route (`route`, `HTTP_SERVER_START`) | ✅ **(v0.5)** | 404 otomatis untuk path tak terdaftar |
+| Blok `html { }`               | ✅ **(v0.5)** | `title`/`heading`/`text`, `html` tetap bisa jadi nama variabel |
+| Map & JSON                    | ✅ **(v0.5)** | `map_new/get/set/has/keys`, `json_stringify/parse` |
+| File module (`file_read/write`) | ✅ **(v0.5)** | Alias dari `read_file`/`write_file`             |
+| String functions              | ✅ **(v0.5)** | `upper/lower/trim/split/replace/starts_with/ends_with` |
+| Timer (`timer_after`)          | ✅ **(v0.5)** | Blocking, bukan async — lihat batasan di dokumentasi |
+| Mode debug (`--debug`)          | ✅ **(v0.5)** | Waktu eksekusi + traceback Python                |
+| Package manager lokal (`astra_pkg.py`) | ✅ **(v0.5)** | Install dari folder/zip lokal, bukan registry online |
+| Module/import               | ❌     | Direncanakan roadmap lanjutan (package manager belum terintegrasi otomatis) |
 | Standard library              | ❌     | Direncanakan roadmap lanjutan                 |
 | Memory safety (ala Rust)     | ❌     | Direncanakan roadmap lanjutan                 |
 | AI/ML module                 | ❌     | Direncanakan roadmap lanjutan                 |
@@ -549,12 +784,14 @@ Terjadi error saat program berjalan (Runtime Error):
 | v0.1  | Prototype dasar (lexer, parser, interpreter) ✅ |
 | ~~v0.2.1~~ | ~~Astra Device Bridge~~ — **dicabut**, lihat `CHANGELOG.md` |
 | v0.3  | Type System (List ✅, custom type ✅) + Error System lebih detail ✅ **(selesai)** |
-| v0.4  | Web (file I/O ✅, web server ✅), Build .exe ✅, Serial Hardware ⏳ **(saat ini)** |
-| v0.5  | Module system, standard library                     |
-| v0.6  | Compiler/eksekusi lebih cepat                       |
-| v0.7  | Dukungan IoT, ARM support                           |
-| v0.8  | Sistem memory safety                                |
-| v0.9  | Modul AI/Machine Learning                            |
+| v0.4.0 | Web (file I/O ✅, web server ✅), Build .exe ✅, lebih mudah dari Python ✅ **(selesai)** |
+| v0.4.1 | Operasi List lanjutan ✅, contoh game (terminal/web/leaderboard) ✅ **(selesai)** |
+| v0.5.0 | HTTP server multi-route ✅, Map/JSON ✅, timer ✅, `--debug` ✅, package manager lokal ✅, optimisasi dispatch ✅ **(selesai)** |
+| v0.6  | Module system (`import` sungguhan), standard library, Serial Hardware ⏳ **(berikutnya)** |
+| v0.7  | Compiler/eksekusi lebih cepat (bytecode)             |
+| v0.8  | Dukungan IoT, ARM support                           |
+| v0.9  | Sistem memory safety                                |
+| v0.10 | Modul AI/Machine Learning                            |
 | v1.0  | Release publik                                       |
 
 Lihat `CHANGELOG.md` untuk rincian setiap perubahan per versi, termasuk fitur
@@ -576,6 +813,8 @@ python3 tests/test_v0_3_features.py     # test List & Error System (v0.3)
 python3 tests/test_v0_3_custom_type.py  # test Custom Type (v0.3)
 python3 tests/test_v0_4_web.py           # test File I/O & web server (v0.4)
 python3 tests/test_v0_4_beginner_friendly.py  # test let opsional, i18n, built-in pemula (v0.4)
+python3 tests/test_v0_4_list_ops.py       # test sort, sort_by, contains, join, slice (v0.4)
+python3 tests/test_v0_5_features.py       # test for-loop, HTTP server, Map, JSON, timer, string functions (v0.5)
 ```
 
 Test regresi **wajib tetap lulus 100%** di setiap versi berikutnya — jika ada
@@ -591,8 +830,8 @@ AstraLang dirancang sebagai proyek open source. Prinsip pengembangan yang dipega
 - Fitur lama tidak dihapus saat memperbaiki bug, kecuali memang direncanakan sebagai breaking change dan didokumentasikan dengan jelas (lihat `CHANGELOG.md`).
 - Setiap perubahan memakai versioning yang jelas (lihat Roadmap di atas).
 
-
+---
 
 ## Lisensi
 
-BARU MUNCUL DI GITHUB BELOM KEMANA MANA
+Belum ditentukan (rencana: lisensi open source seperti MIT/Apache-2.0 sebelum rilis v1.0 publik).

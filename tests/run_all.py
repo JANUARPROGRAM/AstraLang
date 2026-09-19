@@ -17,6 +17,10 @@ TEST_FILES = [
     "test_v0_1_regression.py",
     "test_v0_3_features.py",
     "test_v0_3_custom_type.py",
+    "test_v0_4_web.py",
+    "test_v0_4_beginner_friendly.py",
+    "test_v0_4_list_ops.py",
+    "test_v0_5_features.py",
 ]
 
 
