@@ -120,7 +120,7 @@ python3 --version
 ```bash
 # Jika menggunakan git
 pkg install git -y
-git clone <URL_REPOSITORY_ANDA>
+git clone https://github.con/JANUARPROGRAM/AstraLang
 cd AstraLang
 ```
 
